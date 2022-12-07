@@ -1,0 +1,9 @@
+*.sw[lmnop]
+__pycache__
+.ipynb_checkpoints
+*.lnk
+_keys.py
+ah/
+bliz-ah/
+*.pkl
+old-exports/
