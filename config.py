@@ -1,0 +1,9 @@
+tsm_region_id = 13  # North America BCC
+tsm_realm_id = 701  # Earthfury
+tsm_ah_id = 351     # Earthfury - Alliance AH
+tsm_cache_dir = "ah"
+blizzard_realm_id = 4731  # US - Earthfury
+blizzard_ah_id = 2  # Earthfury - Alliance AH
+blizzard_item_cache = "item_ids.pkl"
+blizzard_item_reverse_cache = "item_names.pkl"
+blizzard_cache_dir = "bliz-ah"
