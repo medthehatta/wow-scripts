@@ -17,6 +17,26 @@ def item_info(items, bliz_ah, tsm_ah, item_name=None, item_id=None):
     bliz_info = auction_summary(bliz_ah[item_id])
     tsm_info = tsm_ah[item_id]
 
+    headroom = int(
+        tsm_info["region"]["soldPerDay"]/(tsm_info["region"]["salePct"]/100) -
+        bliz_info["quantity"]
+    )
+
+    market_skew_pct = round(
+        (
+            100*(tsm_info["marketValue"] - tsm_info["historical"]) /
+            tsm_info["historical"]
+        ),
+        2,
+    )
+    auction_skew_pct = round(
+        (
+            100*(bliz_info["min"] - tsm_info["marketValue"]) /
+            tsm_info["marketValue"]
+        ),
+        2,
+    )
+
     num_auctions = bliz_info.pop("num")
     return {
         "id": item_id,
@@ -39,21 +59,9 @@ def item_info(items, bliz_ah, tsm_ah, item_name=None, item_id=None):
         "region_avg_sale_price": _w_gold(tsm_info["region"]["avgSalePrice"]),
         "sale_pct": tsm_info["region"]["salePct"],
         "sold_per_day": tsm_info["region"]["soldPerDay"],
-        "headroom": tsm_info["region"]["soldPerDay"] - bliz_info["quantity"],
-        "market_skew_pct": round(
-            (
-                100*(tsm_info["marketValue"] - tsm_info["historical"]) /
-                tsm_info["historical"]
-            ),
-            2,
-        ),
-        "auction_skew_pct": round(
-            (
-                100*(bliz_info["min"] - tsm_info["marketValue"]) /
-                tsm_info["marketValue"]
-            ),
-            2,
-        )
+        "headroom": headroom,
+        "market_skew_pct": market_skew_pct,
+        "auction_skew_pct": auction_skew_pct,
     }
 
 
