@@ -28,7 +28,7 @@ price_api = Requester("https://pricing-api.tradeskillmaster.com", token=tok)
 
 def _adjust(record):
     # Looks like the percent got a new sigfig, so divide by 10 here
-    return assoc_in(record, ["region"]["salePct"], record["region"]["salePct"]/10)
+    return assoc_in(record, ["region", "salePct"], record["region"]["salePct"]/10)
 
 
 def auction_house_snapshot(region_id, realm_id, ah_id):
