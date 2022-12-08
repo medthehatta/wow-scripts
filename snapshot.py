@@ -48,11 +48,12 @@ class SnapshotProcessor:
         elif now > last_update + datetime.timedelta(seconds=max_age_seconds):
             try:
                 self._data = self.fetch_func()
-            except Exception:
+            except Exception as err:
                 logger.warning(
                     f"Could not fetch data with '{self.fetch_func.__name__}', "
                     f"falling back to cached "
-                    f"'{snap_path}' from '{last_update}' as requested."
+                    f"'{snap_path}' from '{last_update}' as requested.  "
+                    f"Error info (next line)\n{err}"
                 )
                 with open(snap_path, "rb") as f:
                     self._data = pickle.load(f)
