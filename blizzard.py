@@ -60,6 +60,14 @@ def _paginate(bliz, path, subkey=None, **kwargs):
             yield result
 
 
+def item_name(item):
+    return item["data"]["name"]["en_US"]
+
+
+def item_id(item):
+    return item["data"]["id"]
+
+
 def item_search_by_name(terms):
     return _paginate(
         blizzard_static,
@@ -81,7 +89,7 @@ UNSET = object()
 
 def item_search_single_by_name(name, default=UNSET):
     results = [
-        (x["data"]["name"]["en_US"], x)
+        (item_name(x), x)
         for x in item_search_by_name(name)
     ]
     norm_name = _normalize_name(name)
@@ -103,7 +111,7 @@ def item_search_single_by_name(name, default=UNSET):
 
 def item_search_single_id_by_name(name, default=UNSET):
     results = [
-        (x["data"]["name"]["en_US"], x)
+        (item_name(x), x)
         for x in item_search_by_name(name)
     ]
     lower_name = name.lower()
@@ -112,9 +120,9 @@ def item_search_single_id_by_name(name, default=UNSET):
         if name_.lower() == lower_name
     ]
     if len(found) == 1:
-        return found[0]["data"]["id"]
+        return item_id(found[0])
     elif len(found) > 1:
-        names_found = [x["data"]["name"]["en_US"] for x in found]
+        names_found = [item_name(x) for x in found]
         raise LookupError(
             f"Item name search for '{name}' did not yield unique value!  "
             f"Found (next line):\n{names_found}"
@@ -128,12 +136,15 @@ def item_search_single_id_by_name(name, default=UNSET):
 
 def item_search_id_by_name(terms):
     results = [
-        (x["data"]["name"]["en_US"], x["data"]["id"])
+        (item_name(x), item_id(x))
         for x in item_search_by_name(terms)
     ]
     return next(
         (name, id_) for (name, id_) in results
-        if name.lower().replace(" ", "") == terms.lower().replace(" ", "")
+        if (
+            _normalize_name(name).replace(" ", "") ==
+            _normalize_name(terms).replace(" ", "")
+        )
     )
 
 
@@ -184,6 +195,8 @@ def expand_repetition(value_count_seq):
 
 
 def auction_summary(auctions):
+    if not auctions:
+        return {}
     num = len(auctions)
     quantity = sum(x["quantity"] for x in auctions)
     weight_avg_sell = \
