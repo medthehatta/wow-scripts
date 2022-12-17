@@ -209,16 +209,16 @@ def auction_summary(auctions):
     return {
         "num": num,
         "quantity": quantity,
-        "weight_sell": weight_avg_sell,
-        "avg_sell": avg_sell,
-        "max": sorted_prices[-1],
-        "p80": p(80, sorted_prices),
-        "p50": p(50, sorted_prices),
-        "p20": p(20, sorted_prices),
-        "wp80": p(80, sorted_prices_expanded),
-        "wp50": p(50, sorted_prices_expanded),
-        "wp20": p(20, sorted_prices_expanded),
-        "min": sorted_prices[0],
+        "weight_sell": weight_avg_sell / 1e4,
+        "avg_sell": avg_sell / 1e4,
+        "max": sorted_prices[-1] / 1e4,
+        "p80": p(80, sorted_prices) / 1e4,
+        "p50": p(50, sorted_prices) / 1e4,
+        "p20": p(20, sorted_prices) / 1e4,
+        "wp80": p(80, sorted_prices_expanded) / 1e4,
+        "wp50": p(50, sorted_prices_expanded) / 1e4,
+        "wp20": p(20, sorted_prices_expanded) / 1e4,
+        "min": sorted_prices[0] / 1e4,
     }
 
 

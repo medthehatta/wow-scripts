@@ -1,10 +1,6 @@
 from blizzard import auction_summary
 
 
-def _w_gold(copper_price):
-    return {"gold": round(copper_price/1e4, 2), "copper": copper_price}
-
-
 def item_info(items, bliz_ah, tsm_ah, item_name=None, item_id=None):
     if item_name:
         item_id = items.get_id(item_name)
@@ -43,20 +39,22 @@ def item_info(items, bliz_ah, tsm_ah, item_name=None, item_id=None):
         "name": item_name_actual,
         "num_auctions": num_auctions,
         "quantity": bliz_info["quantity"],
-        "weight_sell": _w_gold(bliz_info["weight_sell"]),
-        "avg_sell": _w_gold(bliz_info["avg_sell"]),
-        "max": _w_gold(bliz_info["max"]),
-        "p80": _w_gold(bliz_info["p80"]),
-        "p50": _w_gold(bliz_info["p50"]),
-        "p20": _w_gold(bliz_info["p20"]),
-        "wp80": _w_gold(bliz_info["wp80"]),
-        "wp50": _w_gold(bliz_info["wp50"]),
-        "wp20": _w_gold(bliz_info["wp20"]),
-        "min": _w_gold(bliz_info["min"]),
-        "realm_market_value": _w_gold(tsm_info["marketValue"]),
-        "realm_historical": _w_gold(tsm_info["historical"]),
-        "region_historical": _w_gold(tsm_info["region"]["historical"]),
-        "region_avg_sale_price": _w_gold(tsm_info["region"]["avgSalePrice"]),
+        "weight_sell": bliz_info["weight_sell"],
+        "avg_sell": bliz_info["avg_sell"],
+        "max": bliz_info["max"],
+        "p80": bliz_info["p80"],
+        "p50": bliz_info["p50"],
+        "p20": bliz_info["p20"],
+        "wp80": bliz_info["wp80"],
+        "wp50": bliz_info["wp50"],
+        "wp20": bliz_info["wp20"],
+        "min": bliz_info["min"],
+        # TSM price values are in copper and we don't have a summary layer
+        # (like auction_summary() for blizard data), so we convert to gold here
+        "realm_market_value": tsm_info["marketValue"] / 1e4,
+        "realm_historical": tsm_info["historical"] / 1e4,
+        "region_historical": tsm_info["region"]["historical"] / 1e4,
+        "region_avg_sale_price": tsm_info["region"]["avgSalePrice"] / 1e4,
         "sale_pct": tsm_info["region"]["salePct"],
         "sold_per_day": tsm_info["region"]["soldPerDay"],
         "headroom": headroom,
