@@ -10,7 +10,26 @@ def item_info(items, bliz_ah, tsm_ah, item_name=None, item_id=None):
     else:
         raise TypeError("Must provide item_name or item_id")
 
-    bliz_info = auction_summary(bliz_ah[item_id])
+    if item_id in bliz_ah:
+        bliz_info = auction_summary(bliz_ah[item_id])
+    else:
+        itemdata = items.get_item(item_id=item_id)
+        # Vendor price in gold
+        vendor_price = itemdata["purchase_price"] / 1e4
+        bliz_info = {
+            "quantity": 9999,
+            "num": 9999,
+            "weight_sell": vendor_price,
+            "avg_sell": vendor_price,
+            "max": vendor_price,
+            "p80": vendor_price,
+            "p50": vendor_price,
+            "p20": vendor_price,
+            "wp80": vendor_price,
+            "wp50": vendor_price,
+            "wp20": vendor_price,
+            "min": vendor_price,
+        }
     tsm_info = tsm_ah[item_id]
 
     headroom = int(

@@ -6,9 +6,26 @@ from kvstore import InefficientKVStore
 from blizzard import ItemLookup
 
 
+def to_repr(item_name):
+    # foo -> [foo]
+    return f"[{item_name}]"
+
+
+def from_repr(repr_):
+    # [foo] -> foo
+    return repr_[1:-1]
+
+
 class CraftingComponents(FormalVector):
 
     _ZERO = "CraftingComponents.zero"
+
+    def component_ids(self):
+        return list(set(self.basis.values()))
+
+    def component_names(self):
+        unsanitized = list(set(self.basis.keys()))
+        return [from_repr(x) for x in unsanitized]
 
 
 class Recipes:
@@ -29,7 +46,7 @@ class Recipes:
         else:
             raise TypeError("Must provide item_id or item_name")
 
-        return CraftingComponents.named(f"[{item_name}]", item_id)
+        return CraftingComponents.named(to_repr(item_name), item_id)
 
     def lookup(self, item: CraftingComponents=None, item_id=None, item_name=None):
         if item is not None:
@@ -41,7 +58,7 @@ class Recipes:
             ids = self.out_index.get(item_id, [])
             return [self.storage.get(id_) for id_ in ids]
         elif item_name is not None:
-            return self.lookup(item_id=self.items.item_id(item_name))
+            return self.lookup(item_id=self.items.get_id(item_name))
         else:
             raise TypeError("Must provide item, item_id, or item_name")
 
@@ -73,14 +90,25 @@ class Recipes:
 
 def copper(key):
     def _copper(item_inf):
-        return item_inf.get(key, {}).get("copper")
+        return item_inf.get(key, {})*1e4
     return _copper
 
 
 def gold(key):
     def _gold(item_inf):
-        return item_inf.get(key, {}).get("gold")
+        return item_inf.get(key, {})
     return _gold
+
+
+def purchase_price(
+    item_info,
+    components: CraftingComponents,
+    price_method=gold("realm_market_value"),
+):
+    return sum(
+        count*price_method(item_info(item_id=item_id))
+        for (name, count, item_id) in components.triples()
+    )
 
 
 def crafting_price(

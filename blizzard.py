@@ -291,3 +291,18 @@ class ItemLookup:
     def _name_from_id_api(self, id_):
         data = self.get_item(item_id=id_)
         return _normalize_name(data["name"]["en_US"])
+
+
+def collapse_languages(data):
+    if isinstance(data, list):
+        return [collapse_languages(x) for x in data]
+    elif isinstance(data, dict):
+        if "en_US" in data:
+            return data["en_US"]
+        elif "href" in data:
+            data.pop("href")
+            return {k: collapse_languages(v) for (k, v) in data.items()}
+        else:
+            return {k: collapse_languages(v) for (k, v) in data.items()}
+    else:
+        return data
