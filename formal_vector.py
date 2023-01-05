@@ -40,6 +40,13 @@ class FormalVector:
     def is_leaf(self):
         return self.components == {self.name: 1}
 
+    def pure(self):
+        n = len(self.components)
+        if len(self.components) == 1:
+            return self.triples()[0]
+        else:
+            raise ValueError(f"Not a pure vector (has {n} (!=1) components).")
+
     @property
     def content(self):
         if self.is_leaf():
@@ -87,6 +94,9 @@ class FormalVector:
 
     def __neg__(self):
         return (-1) * self
+
+    def __bool__(self):
+        return self.components != {}
 
     def __repr__(self):
         if self.name:
