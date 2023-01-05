@@ -6,16 +6,6 @@ from kvstore import InefficientKVStore
 from blizzard import ItemLookup
 
 
-def to_repr(item_name):
-    # foo -> [foo]
-    return f"[{item_name}]"
-
-
-def from_repr(repr_):
-    # [foo] -> foo
-    return repr_[1:-1]
-
-
 class CraftingComponents(FormalVector):
 
     _ZERO = "CraftingComponents.zero"
@@ -24,8 +14,7 @@ class CraftingComponents(FormalVector):
         return list(set(self.basis.values()))
 
     def component_names(self):
-        unsanitized = list(set(self.basis.keys()))
-        return [from_repr(x) for x in unsanitized]
+        return list(set(self.basis.keys()))
 
 
 class Recipes:
@@ -46,7 +35,7 @@ class Recipes:
         else:
             raise TypeError("Must provide item_id or item_name")
 
-        return CraftingComponents.named(to_repr(item_name), item_id)
+        return CraftingComponents.named(item_name, item_id)
 
     def lookup(self, item: CraftingComponents=None, item_id=None, item_name=None):
         if item is not None:
@@ -72,17 +61,24 @@ class Recipes:
         return (id_, outputs, inputs)
 
     def ingredients(self, s):
-        return CraftingComponents.sum(
-            (
+        components = [
+            re.search(r"(\d+)?\s*[*]?\s*(.*)", y.strip()).groups()
+            for y in re.split(r"\s*[+]\s*", s)
+        ]
+        if len(components) == 1:
+            x = components[0]
+            return (
                 int(x[0])*self.ingredient(x[1]) if x[0] else
                 self.ingredient(x[1])
             )
-            for x in
-            [
-                re.search(r"(\d+)?\s*[*]?\s*(.*)", y.strip()).groups()
-                for y in re.split(r"\s*[+]\s*", s)
-            ]
-        )
+        else:
+            return CraftingComponents.sum(
+                (
+                    int(x[0])*self.ingredient(x[1]) if x[0] else
+                    self.ingredient(x[1])
+                )
+                for x in components
+            )
 
     def recipe_from_strings(self, outs, ins):
         return self.recipe(self.ingredients(outs), self.ingredients(ins))
