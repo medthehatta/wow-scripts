@@ -223,6 +223,9 @@ class ProcurementPlanner:
 
     def craft(self, item):
         (name, count, _) = item.pure()
+
+        # FIXME: if there is a loop from X -> Y -> X this will recurse
+        # infinitely.  How do we detect and limit this?
         recipes = self.recipes.lookup(item_name=name)
         
         if not recipes:
