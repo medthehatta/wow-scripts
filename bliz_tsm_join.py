@@ -32,10 +32,13 @@ def item_info(items, bliz_ah, tsm_ah, item_name=None, item_id=None):
         }
     tsm_info = tsm_ah[item_id]
 
-    headroom = int(
-        tsm_info["region"]["soldPerDay"]/(tsm_info["region"]["salePct"]/100) -
-        bliz_info["quantity"]
-    )
+    try:
+        headroom = int(
+            tsm_info["region"]["soldPerDay"]/(tsm_info["region"]["salePct"]/100) -
+            bliz_info["quantity"]
+        )
+    except ZeroDivisionError:
+        headroom = None
 
     market_skew_pct = round(
         (
