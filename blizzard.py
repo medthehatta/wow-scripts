@@ -123,6 +123,11 @@ def item_search_single_id_by_name(name, default=UNSET):
         return item_id(found[0])
     elif len(found) > 1:
         names_found = [item_name(x) for x in found]
+        # "Mechanized Snow Goggles of the Tiger" e.g. will appear as
+        # "Mechanized Snow Goggles", but multiple times.  These are all the
+        # same item for our purposes.
+        if all(n == names_found[0] for n in names_found):
+            return item_id(found[0])
         raise LookupError(
             f"Item name search for '{name}' did not yield unique value!  "
             f"Found (next line):\n{names_found}"
