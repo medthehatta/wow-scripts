@@ -62,8 +62,11 @@ class FormalVector:
             (k, self.components[k], self.basis[k]) for k in self.components
         ]
 
+    def unit(self, k):
+        return FormalVector.named(k, self.basis[k])
+
     def project(self, k):
-        return self.components[k] * FormalVector.named(k, self.basis[k])
+        return self.components[k] * self.unit(k)
 
     def __getitem__(self, item):
         return self.components[item]
