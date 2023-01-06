@@ -191,7 +191,7 @@ class ProcurementPlanner:
         }
         self.approaches = [approach_map[x] for x in approaches]
     
-    def ah_buy_now(self, item):
+    def ah_buy_now(self, item, path=None):
         (name, count, _) = item.pure()
         try:
             info = self.ah_info(item_name=name)
@@ -204,7 +204,7 @@ class ProcurementPlanner:
         except KeyError:
             return ImpossibleProcurement(item)
 
-    def ah_buy_market(self, item):
+    def ah_buy_market(self, item, path=None):
         (name, count, _) = item.pure()
         try:
             info = self.ah_info(item_name=name)
@@ -213,19 +213,21 @@ class ProcurementPlanner:
         except KeyError:
             return ImpossibleProcurement(item)
 
-    def vendor_price(self, item):
+    def vendor_price(self, item, path=None):
         return ManualProcurement(item)
         #return VendorBuy(item, "Marigold Soandso", "Sholazar Basin", 1)
 
-    def gather(self, item):
+    def gather(self, item, path=None):
         return EmptyProcurement(item)
         #return Gather(item, "Sholazar Basin", minutes=1)
 
-    def craft(self, item):
+    def craft(self, item, path=None):
+        path = path or []
         (name, count, _) = item.pure()
 
-        # FIXME: if there is a loop from X -> Y -> X this will recurse
-        # infinitely.  How do we detect and limit this?
+        if name in path:
+            return EmptyProcurement(item)
+
         recipes = self.recipes.lookup(item_name=name)
         
         if not recipes:
@@ -235,22 +237,26 @@ class ProcurementPlanner:
         # So because we are looking specifically for a single input, we scale the
         # reagents down
         scaled_ingredients = [
-            (1/item.pure()[1]) * ingredients
+            (count/item.pure()[1]) * ingredients
             for (item, ingredients) in recipes
         ]
         
         return Or.flat(
-            And(Craft(item, ingredients), self.obtain(ingredients)).reduced()
+            And(
+                Craft(item, ingredients),
+                self.obtain(ingredients, path=path + [name]),
+            ).reduced()
             for ingredients in scaled_ingredients
         ).reduced()
 
-    def obtain(self, item: CraftingComponents):
+    def obtain(self, item: CraftingComponents, path=None):
+        path = path or []
         if len(item.components) == 1:
-            return Or.flat(approach(item) for approach in self.approaches).reduced()
+            return Or.flat(approach(item, path=path) for approach in self.approaches).reduced()
             
         else:
             components = [item.project(k) for k in item.components]
-            return And.flat(self.obtain(component) for component in components).reduced()
+            return And.flat(self.obtain(component, path=path) for component in components).reduced()
 
 
 def dnf(tree):
@@ -279,7 +285,7 @@ def test_dnf():
     
 
 def by_item(ops):
-    g = groupby(lambda x: x.item.pure()[0], ops)
+    g = groupby(lambda x: (x.item.pure()[0], type(x)), ops)
     return [v[0].sum(v) for v in g.values()]
 
 
