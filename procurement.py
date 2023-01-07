@@ -177,15 +177,18 @@ class ProcurementPlanner:
         items: ItemLookup,
         item_ah_info_getter: callable,
         recipes: Recipes,
+        vendor: dict,
         approaches=None,
     ):
-        self.recipes = recipes
         self.items = items
         self.ah_info = item_ah_info_getter
+        self.recipes = recipes
+        self.vendor = vendor
+
         approach_map = {
             "ah_buy_now": self.ah_buy_now,
             "ah_buy_market": self.ah_buy_market,
-            "vendor_price": self.vendor_price,
+            "vendor": self.vendor_price,
             "gather": self.gather,
             "craft": self.craft,
         }
@@ -214,8 +217,11 @@ class ProcurementPlanner:
             return ImpossibleProcurement(item)
 
     def vendor_price(self, item, path=None):
-        return ManualProcurement(item)
-        #return VendorBuy(item, "Marigold Soandso", "Sholazar Basin", 1)
+        (name, count, _) = item.pure()
+        if name in self.vendor:
+            return VendorBuy(item, "vendor", "somewhere", self.vendor[name])
+        else:
+            return ImpossibleProcurement(item)
 
     def gather(self, item, path=None):
         return EmptyProcurement(item)
