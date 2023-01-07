@@ -295,10 +295,14 @@ def by_item(ops):
     return [v[0].sum(v) for v in g.values()]
 
 
-def _cost(reqs):
+def cost(reqs):
     return sum(x.gold if hasattr(x, "gold") else 0 for x in reqs)
 
 
 def topk_procurements(pp, items, k=4):
     dnf_ = dnf(pp.obtain(items))
-    return [by_item(ops) for ops in topk(k, dnf_, key=lambda x: -_cost(x))]
+    methods = [
+        by_item(ops)
+        for ops in topk(k, dnf_, key=lambda x: -cost(x))
+    ]
+    return [(cost(m), m) for m in methods]
