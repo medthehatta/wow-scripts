@@ -306,3 +306,8 @@ def topk_procurements(pp, items, k=4):
         for ops in topk(k, dnf_, key=lambda x: -cost(x))
     ]
     return [(cost(m), m) for m in methods]
+
+
+def best_procurement(pp, items):
+    dnf_ = dnf(pp.obtain(items))
+    return min(dnf_, key=lambda x: cost(x))
