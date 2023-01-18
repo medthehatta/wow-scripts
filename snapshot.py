@@ -29,6 +29,7 @@ class SnapshotProcessor:
         self.cache_dir = cache_dir
         self.snap_format = "-".join([snap_prefix, "%Y-%m-%dT%H-%M-%S"])
         self._data = None
+        self._cache_forced = None
 
     def get(self, max_age_seconds=3000, fallback_to_cache=True):
         (snap_path, last_update) = \
@@ -43,9 +44,19 @@ class SnapshotProcessor:
             with open(os.path.join(self.cache_dir, snap_filename), "wb") as f:
                 pickle.dump(self._data, f)
 
+        # We are forcing use of the cache for 5 minutes due to a fetch issue
+        elif (
+            self._cache_forced and
+            now < self._cache_forced + datetime.timedelta(seconds=300)
+        ):
+            snap_filename = now.strftime(self.snap_format)
+            with open(os.path.join(self.cache_dir, snap_filename), "wb") as f:
+                pickle.dump(self._data, f)
+
         # Last snap too old
         # (same as first get ever, but fallback to cache is available)
         elif now > last_update + datetime.timedelta(seconds=max_age_seconds):
+            self._cache_forced = None
             try:
                 self._data = self.fetch_func()
             except Exception as err:
@@ -57,6 +68,7 @@ class SnapshotProcessor:
                 )
                 with open(snap_path, "rb") as f:
                     self._data = pickle.load(f)
+                self._cache_forced = now
             else:
                 snap_filename = now.strftime(self.snap_format)
                 with open(os.path.join(self.cache_dir, snap_filename), "wb") as f:
