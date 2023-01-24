@@ -261,3 +261,9 @@ mechano-hog
 
 mekgineer's chopper
 12 titansteel bar + 40 handful of cobalt bolts + 2 arctic fur + salvaged iron golem parts + 8 goblin-machined piston + elementium-plated exhaust pipe
+
+volatile blasting trigger
+3 cobalt bar + crystallized water
+
+arclight spanner
+6 copper bar

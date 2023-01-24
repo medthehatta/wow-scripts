@@ -1,0 +1,115 @@
+flask of the frost wyrm
+flask of endless rage
+flask of stoneblood
+titanium bar
+indestructible potion
+eternal shadow
+oily blackmouth
+elixir of mighty thoughts
+frostweave cloth
+wildvine
+felcloth
+lesser healing potion
+runic mana potion
+greater planar essence
+netherweave cloth
+greater healing potion
+crystallized water
+purple lotus
+bruiseweed
+arcane dust
+tiger lily
+crystallized fire
+major healing potion
+potion of speed
+potion of wild magic
+lichbloom
+pygmy oil
+adder's tongue
+imbued vial
+icethorn
+frost lotus
+goldclover
+crystallized life
+eternal life
+deadnettle
+elixir of accuracy
+lesser planar essence
+eternal fire
+eternal water
+chaotic skyflare diamond
+skyflare diamond
+potent monarch topaz
+monarch topaz
+runed scarlet ruby
+scarlet ruby
+purified twilight opal
+twilight opal
+potion of speed
+potion of wild magic
+lichbloom
+frostweave cloth
+infinite dust
+greater cosmic essence
+dream shard
+eternal belt buckle
+titansteel bar
+titansteel spellblade
+mageweave cloth
+rough stone
+copper bar
+coarse stone
+linen cloth
+bronze bar
+heavy stone
+moss agate
+wool cloth
+medium leather
+steel bar
+solid stone
+mithril bar
+mageweave cloth
+dense stone
+thorium bar
+runecloth
+fel iron bar
+mote of earth
+mote of fire
+netherweave cloth
+adamantite bar
+cobalt bar
+frostweave cloth
+crystallized water
+crystallized earth
+crystallized fire
+borean leather
+eternal shadow
+saronite bar
+liferoot
+blackmouth oil
+briarthorn
+bruiseweed
+elixir of greater defense
+fadeleaf
+goldclover
+goldthorn
+greater healing potion
+kingsblood
+lesser invisibility potion
+lichbloom
+liferoot
+major troll's blood elixir
+nature protection potion
+oily blackmouth
+runic mana potion
+stranglekelp
+swiftness potion
+swiftthistle
+swim speed potion
+wild steelbloom
+elixir of water walking
+elixir of mighty thoughts
+fish feast
+glacial salmon
+rockfin grouper
+smoked rockfin
