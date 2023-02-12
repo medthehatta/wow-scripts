@@ -110,7 +110,7 @@ class FormalVector:
             return " + ".join(
                 f"{k}" if v == 1 else
                 f"-{k}" if v == -1 else
-                f"{v}*{k}"
+                f"{v} {k}"
                 for (k, v) in self.components.items()
             )
 

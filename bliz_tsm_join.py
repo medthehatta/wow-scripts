@@ -1,96 +1,139 @@
+import time
+
+from cytoolz import get_in
+
+from blizzard import ItemLookup
+from blizzard import auction_data
 from blizzard import auction_summary
+from blizzard import collapse_languages
+from kvstore import InefficientKVStore
+from snapshot import SnapshotProcessor
+from tsm import auction_house_snapshot
 
 
-def item_info(items, bliz_ah, tsm_ah, item_name=None, item_id=None):
-    if item_name:
-        item_id = items.get_id(item_name)
-        item_name_actual = items.get_name(item_id)
-    elif item_id:
-        item_name_actual = items.get_name(item_id)
-    else:
-        raise TypeError("Must provide item_name or item_id")
-
-    if item_id in bliz_ah:
-        bliz_info = auction_summary(bliz_ah[item_id])
-    else:
-        itemdata = items.get_item(item_id=item_id)
-        # Vendor price in gold
-        vendor_price = itemdata["purchase_price"] / 1e4
-        bliz_info = {
-            "quantity": 9999,
-            "num": 9999,
-            "weight_sell": vendor_price,
-            "avg_sell": vendor_price,
-            "max": vendor_price,
-            "p80": vendor_price,
-            "p50": vendor_price,
-            "p20": vendor_price,
-            "wp80": vendor_price,
-            "wp50": vendor_price,
-            "wp20": vendor_price,
-            "min": vendor_price,
-        }
-    tsm_info = tsm_ah[item_id]
-
+def is_sequence(x):
     try:
-        headroom = int(
-            tsm_info["region"]["soldPerDay"]/(tsm_info["region"]["salePct"]/100) -
-            bliz_info["quantity"]
+        iter(x)
+    except TypeError:
+        return False
+
+    return not isinstance(x, str)
+
+
+def dict_paths(dic, prefix=None, bare_root=False):
+    prefix = prefix or []
+    for (k, v) in dic.items():
+        if not isinstance(v, dict):
+            if not prefix and bare_root:
+                yield k
+            else:
+                yield prefix + [k]
+        else:
+            yield from dict_paths(v, prefix=prefix + [k])
+
+
+_UNSET = object()
+
+
+class ItemInfoAggregator:
+
+    def __init__(
+        self,
+        items: ItemLookup,
+        bliz_ah: dict,
+        tsm_ah: dict,
+        backing: InefficientKVStore,
+        ttl_seconds=600,
+    ):
+        self.items = items
+        self.bliz_ah = bliz_ah
+        self.tsm_ah = tsm_ah
+        self.backing = backing
+        self.backing.slurp()
+        self.ttl_seconds = ttl_seconds
+
+    def get_id_name(self, item=None, item_name=None, item_id=None):
+        if item_name:
+            item_id = self.items.get_id(item_name)
+            item_name_actual = self.items.get_name(item_id)
+        elif item_id:
+            item_name_actual = self.items.get_name(item_id)
+        elif item:
+            (_, _, item_id) = item.pure()
+            item_name_actual = self.items.get_name(item_id)
+        else:
+            raise TypeError("Must provide item_name or item_id")
+
+        return (item_id, item_name_actual)
+
+
+    def get(self, item=None, item_name=None, item_id=None):
+        (item_id, item_name_actual) = self.get_id_name(
+            item=item,
+            item_name=item_name,
+            item_id=item_id,
         )
-    except ZeroDivisionError:
-        headroom = None
 
-    market_skew_pct = round(
-        (
-            100*(tsm_info["marketValue"] - tsm_info["historical"]) /
-            tsm_info["historical"]
-        ),
-        2,
-    )
-    auction_skew_pct = round(
-        (
-            100*(bliz_info["min"] - tsm_info["marketValue"]) /
-            tsm_info["marketValue"]
-        ),
-        2,
-    )
+        if (
+            not self.backing.get(item_id) or
+            time.time() > self.backing.get(item_id)["_expiry_"]
+        ):
+            item_data = collapse_languages(self.items.get_item(item_id=item_id))
+            bliz_data = auction_summary(self.bliz_ah.get(item_id))
+            tsm_data = self.tsm_ah.get(item_id)
+            self.backing.put(
+                item_id,
+                {
+                    "_expiry_": time.time() + self.ttl_seconds,
+                    **(item_data or {}),
+                    **(bliz_data or {}),
+                    **(tsm_data or {}),
+                },
+            )
+            self.backing.commit()
+        return self.backing.get(item_id)
 
-    num_auctions = bliz_info.pop("num")
-    return {
-        "id": item_id,
-        "name": item_name_actual,
-        "num_auctions": num_auctions,
-        "quantity": bliz_info["quantity"],
-        "weight_sell": bliz_info["weight_sell"],
-        "avg_sell": bliz_info["avg_sell"],
-        "max": bliz_info["max"],
-        "p80": bliz_info["p80"],
-        "p50": bliz_info["p50"],
-        "p20": bliz_info["p20"],
-        "wp80": bliz_info["wp80"],
-        "wp50": bliz_info["wp50"],
-        "wp20": bliz_info["wp20"],
-        "min": bliz_info["min"],
-        # TSM price values are in copper and we don't have a summary layer
-        # (like auction_summary() for blizard data), so we convert to gold here
-        "realm_market_value": tsm_info["marketValue"] / 1e4,
-        "realm_historical": tsm_info["historical"] / 1e4,
-        "region_historical": tsm_info["region"]["historical"] / 1e4,
-        "region_avg_sale_price": tsm_info["region"]["avgSalePrice"] / 1e4,
-        "sale_pct": tsm_info["region"]["salePct"],
-        "sold_per_day": tsm_info["region"]["soldPerDay"],
-        "headroom": headroom,
-        "market_skew_pct": market_skew_pct,
-        "auction_skew_pct": auction_skew_pct,
-    }
+    def get_property(
+        self,
+        prop,
+        item=None,
+        item_name=None,
+        item_id=None,
+        default=_UNSET,
+    ):
+        if not is_sequence(prop):
+            prop = [prop]
 
+        info = self.get(item=item, item_name=item_name, item_id=item_id)
 
-def item_info_getter(items, bliz_ah_snap, tsm_ah_snap, max_age_seconds=3000):
+        if default is _UNSET:
+            return get_in(prop, info, no_default=True)
+        else:
+            return get_in(prop, info, default=default)
 
-    def _item_info(*args, **kwargs):
-        bliz_ah = bliz_ah_snap.get(max_age_seconds=max_age_seconds)
-        tsm_ah = tsm_ah_snap.get(max_age_seconds=max_age_seconds)
+    def paths(
+        self,
+        item=None,
+        item_name=None,
+        item_id=None,
+        bare_root=True,
+    ):
+        return dict_paths(
+            self.get(item=item, item_name=item_name, item_id=item_id),
+            bare_root=bare_root,
+        )
 
-        return item_info(items, bliz_ah, tsm_ah, *args, **kwargs)
+    def refresh(self, item=None, item_name=None, item_id=None):
+        (item_id, item_name_actual) = self.get_id_name(
+            item=item,
+            item_name=item_name,
+            item_id=item_id,
+        )
+        self.backing.pop(item_id)
+        self.backing.commit()
+        return self.get(item_id=item_id)
 
-    return _item_info
+    def prop(self, path):
+        def _prop(item_id):
+            return self.get_property(path, item_id=item_id, default=None)
+        return _prop

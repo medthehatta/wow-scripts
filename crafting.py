@@ -1,6 +1,8 @@
 import uuid
 import re
 
+from combined import And, Or, Empty, Impossible
+from combined import dnf
 from formal_vector import FormalVector
 from kvstore import InefficientKVStore
 from blizzard import ItemLookup
@@ -17,6 +19,34 @@ class CraftingComponents(FormalVector):
         return list(set(self.basis.keys()))
 
 
+class Procure:
+
+    def __init__(self, item: CraftingComponents):
+        self.item = item
+
+    def __repr__(self):
+        return f"Procure({self.item})"
+
+
+class SpecificProcure(Procure):
+
+    def __init__(self, name, item: CraftingComponents):
+        self.name = "".join(c.title() for c in name.split())
+        self.item = item
+
+    def __repr__(self):
+        return f"{self.name}({self.item})"
+
+
+class Craft:
+
+    def __init__(self, item: CraftingComponents):
+        self.item = item
+
+    def __repr__(self):
+        return f"Craft({self.item})"
+
+
 class Recipes:
 
     def __init__(self, items: ItemLookup):
@@ -24,6 +54,17 @@ class Recipes:
         self.storage = {}
         self.in_index = {}
         self.out_index = {}
+
+    def read_from_file(self, f):
+        r_out = None
+        for line in f:
+            if line.strip() and not line.strip().startswith("#"):
+                if r_out:
+                    self.recipe_from_strings(r_out, line.strip())
+                    r_out = None
+                else:
+                    r_out = line.strip()
+        return self
 
     def ingredient(self, item_name=None, item_id=None):
         if item_name is not None:
@@ -83,62 +124,107 @@ class Recipes:
     def recipe_from_strings(self, outs, ins):
         return self.recipe(self.ingredients(outs), self.ingredients(ins))
 
+    def tree(self, item: CraftingComponents, path=None):
+        path = path or []
 
-def copper(key):
-    def _copper(item_inf):
-        return item_inf.get(key, {})*1e4
-    return _copper
+        if len(item.components) > 1:
+            return And.flat(
+                self.tree(item.project(k)) for k in item.components
+            )
+
+        (name, count, item_id) = item.pure()
+
+        # We track which items we are crafting in this branch of the tree so
+        # we can quit if we end up in a loop
+        if item_id in path:
+            return Empty
+
+        recipes = self.lookup(item_id=item_id)
+        
+        if not recipes:
+            return Procure(item)
+
+        # Some recipes produce multiple outputs for the given input.  E.G. flasks.
+        # So because we are looking specifically for `count` outputs, we scale the
+        # reagents
+        scaled_recipes = [
+            (count/item_.pure()[1]) * ingredients
+            for (item_, ingredients) in recipes
+        ]
+
+        return Or(
+            Procure(item),
+            Or.flat(
+                And(
+                    Craft(item),
+                    And.flat(
+                        self.tree(recipe.project(ingredient), path=path + [item_id])
+                        for ingredient in recipe.components
+                    ).reduced()
+                ).reduced()
+                for recipe in scaled_recipes
+            ).reduced()
+        ).reduced()
 
 
-def gold(key):
-    def _gold(item_inf):
-        return item_inf.get(key, {})
-    return _gold
+def coalesce_(ops):
+    by_item = {}
+    for op in ops:
+        t = type(op)
+
+        if t not in by_item:
+            by_item[t] = {}
+        
+        if isinstance(op, (Craft, Procure)):
+            k = op.item.pure()[-1]
+            if k in by_item:
+                by_item[t][k] += op.item
+            else:
+                by_item[t][k] = op.item
+
+    for t in by_item:
+        for total in by_item[t].values():
+            yield t(total)
 
 
-def purchase_price(
-    item_info,
-    components: CraftingComponents,
-    price_method=gold("realm_market_value"),
-):
-    return sum(
-        count*price_method(item_info(item_id=item_id))
-        for (name, count, item_id) in components.triples()
+def coalesce(ops):
+    return list(coalesce_(ops))
+
+
+def _procure_decider(purchase_modes, item):
+    (name, count, item_id) = item.pure()
+    
+    modes = {k: v for (k, v) in purchase_modes(item).items() if v is not None}
+
+    if not modes:
+        return (0, Procure(item), [])
+    
+    available = []
+    for op in modes:
+        available.append((-count * modes[op], SpecificProcure(op, item)))
+    best_op = min(modes, key=lambda x: modes[x])
+    return (
+        -count * modes[best_op],
+        SpecificProcure(best_op, item),
+        available,
     )
 
 
-def crafting_price(
-    item_info,
-    recipe,
-    in_price_method=gold("realm_market_value"),
-    out_price_method=gold("realm_market_value"),
-):
-    (outputs, inputs) = recipe
-    input_breakdown = {
-        name: {
-            "count": count,
-            "price": in_price_method(item_info(item_id=item_id)),
-            "total": count*in_price_method(item_info(item_id=item_id)),
-        }
-        for (name, count, item_id) in inputs.triples()
-    }
-    input_breakdown["TOTAL"] = sum(v["total"] for v in input_breakdown.values())
-    output_breakdown = {
-        name: {
-            "count": count,
-            "price": out_price_method(item_info(item_id=item_id)),
-            "total": count*out_price_method(item_info(item_id=item_id)),
-        }
-        for (name, count, item_id) in outputs.triples()
-    }
-    output_breakdown["TOTAL"] = sum(v["total"] for v in output_breakdown.values())
-    profit = output_breakdown["TOTAL"] - input_breakdown["TOTAL"]
-    result = {
-        "profit": profit,
-        "recipe": recipe,
-        "input_price_method": in_price_method,
-        "output_price_method": out_price_method,
-        "input_breakdown": input_breakdown,
-        "output_breakdown": output_breakdown,
-    }
-    return result
+def procurement_options(purchase_modes, tree):
+    methods = (coalesce(x) for x in dnf(tree))
+
+    for method in methods:
+
+        method_cost = 0
+        method_result = []
+        for op in method:
+            if isinstance(op, Procure):
+                (op_cost, specific_op, options) = _procure_decider(purchase_modes, op.item)
+            else:
+                (op_cost, specific_op, options) = (0, op, [])
+
+            method_cost += op_cost
+            method_result.append((op_cost, specific_op, options))
+        
+        yield (method_cost, method_result)
+

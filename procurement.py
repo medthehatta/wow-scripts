@@ -6,6 +6,7 @@ import itertools
 from cytoolz import groupby
 from cytoolz import topk
 from blizzard import ItemLookup
+from bliz_tsm_join import ItemInfoAggregator
 from crafting import Recipes
 
 
@@ -119,28 +120,18 @@ class Gather(Procurement):
 
         
 @dataclass
-class AHBuyNow(Procurement):
+class AHBuy(Procurement):
+    cost_method: callable
     gold: float
 
     @classmethod
     def sum(cls, seq):
         return cls(
             item=CraftingComponents.sum(x.item for x in seq),
+            cost_method=_same_or_die(x.cost_method for x in seq),
             gold=sum(x.gold for x in seq),
         )
-    
-        
-@dataclass
-class AHBuyMarket(Procurement):
-    gold: float
 
-    @classmethod
-    def sum(cls, seq):
-        return cls(
-            item=CraftingComponents.sum(x.item for x in seq),
-            gold=sum(x.gold for x in seq),
-        )
-        
 
 @dataclass
 class VendorBuy(Procurement):
@@ -169,52 +160,42 @@ class Craft(Procurement):
             ingredients=CraftingComponents.sum(x.ingredients for x in seq),
         )
 
-    
+
 class ProcurementPlanner:
     
     def __init__(
         self,
-        items: ItemLookup,
-        item_ah_info_getter: callable,
+        item_info: ItemInfoAggregator,
         recipes: Recipes,
         vendor: dict,
-        approaches=None,
+        ah_cost_methods: list,
     ):
-        self.items = items
         self.ah_info = item_ah_info_getter
         self.recipes = recipes
         self.vendor = vendor
-
-        approach_map = {
-            "ah_buy_now": self.ah_buy_now,
-            "ah_buy_market": self.ah_buy_market,
-            "vendor": self.vendor_price,
-            "gather": self.gather,
-            "craft": self.craft,
-        }
-        self.approaches = [approach_map[x] for x in approaches]
+        self.ah_methods = ah_cost_methods
+        self.approaches = [
+            self.vendor_price,
+            self.gather,
+            self.craft,
+            self.ah_buy,
+        ]
     
-    def ah_buy_now(self, item, path=None):
-        (name, count, _) = item.pure()
-        try:
-            info = self.ah_info(item_name=name)
-            # FIXME: Actually this assumes the minimum price will be good for the
-            # total count of items, but that may not be true
-            price = info["min"]
-            # FIXME: Actually this assumes the total count of items are availble
-            # on the AH, but that may not be true
-            return AHBuyNow(item, count*price)
-        except KeyError:
-            return ImpossibleProcurement(item)
+    def ah_buy(self, item, path=None):
+        (name, count, item_id) = item.pure()
 
-    def ah_buy_market(self, item, path=None):
-        (name, count, _) = item.pure()
-        try:
-            info = self.ah_info(item_name=name)
-            price = info["realm_market_value"]
-            return AHBuyMarket(item, count*price)
-        except KeyError:
-            return ImpossibleProcurement(item)
+        ah_buy_methods = []
+        for price in self.ah_cost_methods:
+            try:
+                ah_buy_methods.append(
+                    AHBuy(item, count*price(item_id))
+                )
+            except Exception:
+                ah_buy_methods.append(
+                    ImpossibleProcurement(price.__name__, item)
+                )
+
+        return Or.flat(ah_buy_methods)
 
     def vendor_price(self, item, path=None):
         (name, count, _) = item.pure()
@@ -238,7 +219,7 @@ class ProcurementPlanner:
         
         if not recipes:
             return EmptyProcurement(item)
-        
+
         # Some recipes produce multiple outputs for the given input.  E.G. flasks.
         # So because we are looking specifically for a single input, we scale the
         # reagents down
