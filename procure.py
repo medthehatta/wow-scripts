@@ -27,70 +27,17 @@ from cytoolz import topk
 from functools import partial
 from kvstore import InefficientKVStore
 from pprint import pprint
+from procurement import purchase_modes
 from snapshot import SnapshotProcessor
 from tsm import auction_house_snapshot
 
-
-def tsm_ah_snapper():
-    return auction_house_snapshot(tsm_region_id, tsm_realm_id, tsm_ah_id)
-
-tsm_ah_snap = SnapshotProcessor(tsm_ah_snapper, cache_dir=tsm_cache_dir)
-tsm_ah = tsm_ah_snap.get(max_age_seconds=3000)
-
-def bliz_ah_snapper():
-    return auction_data(blizzard_realm_id, blizzard_ah_id)
-
-bliz_ah_snap = SnapshotProcessor(bliz_ah_snapper, cache_dir=blizzard_cache_dir)
-bliz_ah = bliz_ah_snap.get(max_age_seconds=3000)
 
 items = ItemLookup(
     InefficientKVStore(blizzard_item_cache),
     InefficientKVStore(blizzard_item_reverse_cache),
 )
 
-iii = ItemInfoAggregator(items, bliz_ah, tsm_ah, InefficientKVStore("aggregator.pkl"))
-
 r = Recipes(items)
-i = r.ingredients
-
-
-vendor = [
-    "wild spineleaf",
-    "enchanted vial",
-    "imbued vial",
-    "leaded vial",
-    "weak flux",
-    "light parchment",
-    "resilient parchment",
-]
-
-
-roxi = {
-    "goblin-machined piston": 1000e4,
-    "salvaged iron golem parts": 3000e4,
-    "elementium-plated exhaust pipe": 1500e4,
-}
-
-
-def nullable_avg(a, b):
-    if a is None:
-        return None
-    elif b is None:
-        return None
-    else:
-        return (a + b) / 2
-
-
-def purchase_modes(item):
-    (name, count, item_id) = item.pure()
-    p = partial(iii.get_property, item=item, default=None)
-    return {
-        "buy now": p("min"),
-        "buy market": p("marketValue"),
-        "buy vendor": p("purchase_price") if name in vendor else None,
-        "long avg": nullable_avg(p(["historical"]), p(["region", "historical"])),
-        "roxi ramrocket": roxi.get(name),
-    }
 
 
 def format_gold(copper_cost):
@@ -106,6 +53,15 @@ def format_gold(copper_cost):
         f"{s}s" if s else "",
         f"{c}c" if c else "",
     ])
+
+
+def format_op_pricing(cost, op):
+    (_, count, _) = op.item.pure()
+    if count != 1 and cost != 0:
+        each = cost / count
+        return f"{format_gold(cost)}  {op}  (ea: {format_gold(each)})"
+    else:
+        return f"{format_gold(cost)}  {op}"
 
 
 def main():
@@ -125,7 +81,10 @@ def main():
 
     results = topk(
         k,
-        procurement_options(purchase_modes, r.tree(i(arg))),
+        procurement_options(
+            purchase_modes,
+            r.tree(r.ingredients(arg)),
+        ),
         key=lambda x: x[0],
     )
 
@@ -136,9 +95,9 @@ def main():
         print(f"({j}/{num}) Total gold: {format_gold(total)}")
         for operation in operations:
             (cost, op, alts) = operation
-            print(f"- {format_gold(cost)}  {op}")
+            print(f"- {format_op_pricing(cost, op)}")
             for (alt_cost, alt) in sorted(alts, key=lambda x: -x[0]):
-                print(f"    (alt: {format_gold(alt_cost)}  {alt}")
+                print(f"      alt: {format_op_pricing(alt_cost, alt)}")
         print("\n")
 
 

@@ -113,3 +113,6 @@ fish feast
 glacial salmon
 rockfin grouper
 smoked rockfin
+elemental earth
+earthstorm diamond
+skyfire diamond

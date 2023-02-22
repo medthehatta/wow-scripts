@@ -127,8 +127,8 @@ saronite bar
 wormhole generator: northrend
 8 titanium bar + 2 eternal shadow + 2 eternal fire + 2 eternal water + 2 eternal air
 
-pygmy oil
-pygmy suckerfish
+3 pygmy oil
+2 pygmy suckerfish
 
 runic mana potion
 2 lichbloom + goldclover + imbued vial
@@ -262,8 +262,74 @@ mechano-hog
 mekgineer's chopper
 12 titansteel bar + 40 handful of cobalt bolts + 2 arctic fur + salvaged iron golem parts + 8 goblin-machined piston + elementium-plated exhaust pipe
 
-volatile blasting trigger
+2 volatile blasting trigger
 3 cobalt bar + crystallized water
 
 arclight spanner
 6 copper bar
+
+glyph of typhoon
+resilient parchment + ink of the sea
+
+ink of the sea
+2 azure pigment
+
+5 azure pigment
+2 deadnettle
+
+5 azure pigment
+2 fire leaf
+
+5 azure pigment
+2 fire seed
+
+5 azure pigment
+2 goldclover
+
+5 azure pigment
+2 talandra's rose
+
+5 azure pigment
+2 tiger lily
+
+3 azure pigment
+adder's tongue
+
+3 azure pigment
+icethorn
+
+3 azure pigment
+lichbloom
+
+eternal belt buckle
+4 saronite bar + eternal earth + eternal water + eternal shadow
+
+baked manta ray
+imperial manta ray
+
+ethereal oil
+2 glassfin minnow
+
+elixir of water walking
+3 ethereal oil + imbued vial
+
+purification potion
+2 icecap + 2 plaguebloom + crystal vial
+
+restorative potion
+elemental earth + goldthorn + crystal vial
+
+super healing potion
+2 netherbloom + felweed + imbued vial
+
+major healing potion
+2 golden sansam + mountain silversage + crystal vial
+
+earthstorm diamond
+3 deep peridot + 3 shadow draenite + 3 golden draenite + 2 primal earth + 2 primal water
+
+skyfire diamond
+3 blood garnet + 3 flame spessarite + 3 azure moonstone + 2 primal fire + 2 primal air
+
+spellslinger's slippers
+4 spellweave + 4 ebonweave + 6 runed orb

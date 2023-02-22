@@ -28,16 +28,26 @@ price_api = Requester("https://pricing-api.tradeskillmaster.com", token=tok)
 
 def _adjust(record):
     # Looks like the percent got a new sigfig, so divide by 10 here
-    return assoc_in(record, ["region", "salePct"], record["region"]["salePct"]/10)
+    return assoc_in(record, ["salePct"], record["salePct"]/10)
 
 
 def auction_house_snapshot(region_id, realm_id, ah_id):
     ah = _json(ah1_res := price_api.request("GET", f"/ah/{ah_id}"))
     reg = _json(reg1_res := price_api.request("GET", f"/region/{region_id}"))
 
+    overlap = ["quantity", "marketValue", "historical"]
+
+    reg_formatted = [
+        {
+            (f"region_{k}" if k in overlap else k): r[k]
+            for k in r
+        }
+        for r in reg
+    ]
+
     ah_index = {a["itemId"]: a for a in ah}
-    reg_index = {a["itemId"]: a for a in reg}
+    reg_index = {a["itemId"]: a for a in reg_formatted}
     return {
-        x["itemId"]: _adjust({**x, "region": reg_index[x["itemId"]]})
+        x["itemId"]: _adjust({**x, **reg_index[x["itemId"]]})
         for x in ah_index.values()
     }

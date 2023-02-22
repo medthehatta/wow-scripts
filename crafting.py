@@ -167,7 +167,7 @@ class Recipes:
         ).reduced()
 
 
-def coalesce_(ops):
+def _coalesce(ops):
     by_item = {}
     for op in ops:
         t = type(op)
@@ -188,7 +188,7 @@ def coalesce_(ops):
 
 
 def coalesce(ops):
-    return list(coalesce_(ops))
+    return list(_coalesce(ops))
 
 
 def _procure_decider(purchase_modes, item):

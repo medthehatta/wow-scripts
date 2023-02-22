@@ -162,7 +162,7 @@ class BlizzardToken(AccessToken):
         if self.tokens is None:
             self.tokens = self._login()
         elif current_time > self.expire_time:
-            self.tokens = self._refresh()
+            self.tokens = self._login()
         return self.tokens["access_token"]
 
     @property

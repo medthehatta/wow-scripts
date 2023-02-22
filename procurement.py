@@ -1,294 +1,91 @@
-from dataclasses import dataclass, field
-from typing import List
-from functools import partial
-from crafting import CraftingComponents
-import itertools
+from bliz_tsm_join import ItemInfoAggregator
+from blizzard import ItemLookup
+from blizzard import auction_data
+from blizzard import auction_summary
+from blizzard import collapse_languages
+from combined import dnf
+from config import blizzard_ah_id
+from config import blizzard_cache_dir
+from config import blizzard_item_cache
+from config import blizzard_item_reverse_cache
+from config import blizzard_realm_id
+from config import tsm_ah_id
+from config import tsm_cache_dir
+from config import tsm_realm_id
+from config import tsm_region_id
+from crafting import Craft
+from crafting import Procure
+from crafting import Recipes
+from crafting import SpecificProcure
+from crafting import coalesce
+from crafting import procurement_options
 from cytoolz import groupby
 from cytoolz import topk
-from blizzard import ItemLookup
-from bliz_tsm_join import ItemInfoAggregator
-from crafting import Recipes
+from functools import partial
+from kvstore import InefficientKVStore
+from pprint import pprint
+from snapshot import SnapshotProcessor
+from tsm import auction_house_snapshot
 
 
-class Combined:
-        
-    def __init__(self, *items):
-        self.items = items
-    
-    def __repr__(self):
-        return f"{self.__class__.__name__}{self.items}"
-    
-    def __iter__(self):
-        return iter(self.items)
-    
-    def __eq__(self, other):
-        return self.items == other.items
-    
-    def __getitem__(self, key):
-        return self.items[key]
-    
-    @classmethod
-    def flat(cls, seq):
-        s = itertools.chain.from_iterable(
-            x.items if isinstance(x, cls) else [x] for x in seq
-        )
-        return cls(*list(s))
+def tsm_ah_snapper():
+    return auction_house_snapshot(tsm_region_id, tsm_realm_id, tsm_ah_id)
 
-    
-class Or(Combined):
-    
-    def reduced(self):
-        return Or.flat(
-            x for x in self.items
-            if all([
-                not isinstance(x, EmptyProcurement),
-                not isinstance(x, ImpossibleProcurement),
-            ])
-        )
+tsm_ah_snap = SnapshotProcessor(tsm_ah_snapper, cache_dir=tsm_cache_dir)
+tsm_ah = tsm_ah_snap.get(max_age_seconds=3000)
+
+def bliz_ah_snapper():
+    return auction_data(blizzard_realm_id, blizzard_ah_id)
+
+bliz_ah_snap = SnapshotProcessor(bliz_ah_snapper, cache_dir=blizzard_cache_dir)
+bliz_ah = bliz_ah_snap.get(max_age_seconds=3000)
+
+items = ItemLookup(
+    InefficientKVStore(blizzard_item_cache),
+    InefficientKVStore(blizzard_item_reverse_cache),
+)
+
+iii = ItemInfoAggregator(items, bliz_ah, tsm_ah, InefficientKVStore("aggregator.pkl"))
+
+r = Recipes(items)
 
 
-class And(Combined):
-    
-    def reduced(self):
-        impossibles = [x for x in self.items if isinstance(x, ImpossibleProcurement)]
-        if impossibles:
-            return ImpossibleProcurement(trace=impossibles)
-        else:
-            return self
-        
-        
-def _same_or_die(seq):
-    lst = list(seq)
-    if not lst:
-        raise ValueError("empty list")
-    first = lst[0]
-    if not all(s == first for s in lst[1:]):
-        raise ValueError("Not all values identical: {set(lst)}")
+vendor = [
+    "wild spineleaf",
+    "enchanted vial",
+    "imbued vial",
+    "crystal vial",
+    "leaded vial",
+    "empty vial",
+    "weak flux",
+    "light parchment",
+    "resilient parchment",
+]
+
+
+roxi = {
+    "goblin-machined piston": 1000e4,
+    "salvaged iron golem parts": 3000e4,
+    "elementium-plated exhaust pipe": 1500e4,
+}
+
+
+def nullable_avg(a, b):
+    if a is None:
+        return None
+    elif b is None:
+        return None
     else:
-        return first
-    
-
-@dataclass
-class Procurement:
-    item: CraftingComponents
+        return (a + b) / 2
 
 
-@dataclass
-class EmptyProcurement(Procurement):
-    pass
-
-
-@dataclass
-class ImpossibleProcurement(Procurement):
-    message: str = ""
-    trace: List[Procurement] = field(default_factory=lambda: [])
-        
-    @classmethod
-    def sum(cls, seq):
-        return cls(
-            item=CraftingComponents.sum(x.item for x in seq),
-            message="; ".join(x.message for x in seq),
-            trace=sum((x.trace for x in seq), []),
-        )
-
-    
-@dataclass
-class ManualProcurement(Procurement):
-    message: str = ""
-        
-    @classmethod
-    def sum(cls, seq):
-        return cls(
-            item=CraftingComponents.sum(x.item for x in seq),
-            message="; ".join(x.message for x in seq),
-        )        
-        
-
-        
-@dataclass
-class Gather(Procurement):
-    where: str
-    minutes: float
-        
-    @classmethod
-    def sum(cls, seq):
-        return cls(
-            item=CraftingComponents.sum(x.item for x in seq),
-            where=_same_or_die(x.where for x in seq),
-            minutes=sum(x.minutes for x in seq),
-        )
-
-        
-@dataclass
-class AHBuy(Procurement):
-    cost_method: callable
-    gold: float
-
-    @classmethod
-    def sum(cls, seq):
-        return cls(
-            item=CraftingComponents.sum(x.item for x in seq),
-            cost_method=_same_or_die(x.cost_method for x in seq),
-            gold=sum(x.gold for x in seq),
-        )
-
-
-@dataclass
-class VendorBuy(Procurement):
-    who: str
-    where: str
-    gold: float
-
-    @classmethod
-    def sum(cls, seq):
-        return cls(
-            item=CraftingComponents.sum(x.item for x in seq),
-            who=_same_or_die(x.who for x in seq),
-            where=_same_or_die(x.where for x in seq),
-            gold=sum(x.gold for x in seq),
-        )
-    
-        
-@dataclass
-class Craft(Procurement):
-    ingredients: CraftingComponents
-
-    @classmethod
-    def sum(cls, seq):
-        return cls(
-            item=CraftingComponents.sum(x.item for x in seq),
-            ingredients=CraftingComponents.sum(x.ingredients for x in seq),
-        )
-
-
-class ProcurementPlanner:
-    
-    def __init__(
-        self,
-        item_info: ItemInfoAggregator,
-        recipes: Recipes,
-        vendor: dict,
-        ah_cost_methods: list,
-    ):
-        self.ah_info = item_ah_info_getter
-        self.recipes = recipes
-        self.vendor = vendor
-        self.ah_methods = ah_cost_methods
-        self.approaches = [
-            self.vendor_price,
-            self.gather,
-            self.craft,
-            self.ah_buy,
-        ]
-    
-    def ah_buy(self, item, path=None):
-        (name, count, item_id) = item.pure()
-
-        ah_buy_methods = []
-        for price in self.ah_cost_methods:
-            try:
-                ah_buy_methods.append(
-                    AHBuy(item, count*price(item_id))
-                )
-            except Exception:
-                ah_buy_methods.append(
-                    ImpossibleProcurement(price.__name__, item)
-                )
-
-        return Or.flat(ah_buy_methods)
-
-    def vendor_price(self, item, path=None):
-        (name, count, _) = item.pure()
-        if name in self.vendor:
-            return VendorBuy(item, "vendor", "somewhere", self.vendor[name])
-        else:
-            return ImpossibleProcurement(item)
-
-    def gather(self, item, path=None):
-        return EmptyProcurement(item)
-        #return Gather(item, "Sholazar Basin", minutes=1)
-
-    def craft(self, item, path=None):
-        path = path or []
-        (name, count, _) = item.pure()
-
-        if name in path:
-            return EmptyProcurement(item)
-
-        recipes = self.recipes.lookup(item_name=name)
-        
-        if not recipes:
-            return EmptyProcurement(item)
-
-        # Some recipes produce multiple outputs for the given input.  E.G. flasks.
-        # So because we are looking specifically for a single input, we scale the
-        # reagents down
-        scaled_ingredients = [
-            (count/item.pure()[1]) * ingredients
-            for (item, ingredients) in recipes
-        ]
-        
-        return Or.flat(
-            And(
-                Craft(item, ingredients),
-                self.obtain(ingredients, path=path + [name]),
-            ).reduced()
-            for ingredients in scaled_ingredients
-        ).reduced()
-
-    def obtain(self, item: CraftingComponents, path=None):
-        path = path or []
-        if len(item.components) == 1:
-            return Or.flat(approach(item, path=path) for approach in self.approaches).reduced()
-            
-        else:
-            components = [item.project(k) for k in item.components]
-            return And.flat(self.obtain(component, path=path) for component in components).reduced()
-
-
-def dnf(tree):
-    if isinstance(tree, Or):
-        return Or.flat(dnf(x) for x in tree.items)
-    
-    elif isinstance(tree, And):
-        product = itertools.product(*[dnf(y).items for y in tree.items])
-        return Or.flat(And.flat(x) for x in product)
-    
-    else:
-        return Or(And(tree))
-
-    
-def test_dnf():
-    assert dnf(1) == Or(And(1))
-    assert dnf(Or(1)) == Or(And(1))
-    assert dnf(Or(And(1))) == Or(And(1))
-    assert dnf(Or(Or(1))) == Or(And(1))
-    assert dnf(And(And(1))) == Or(And(1))
-    assert dnf(And(Or(1))) == Or(And(1))
-    assert dnf(And(Or(1, 2))) == Or(And(1), And(2))
-    assert dnf(And(Or(1, 2), 3)) == Or(And(1, 3), And(2, 3))
-    assert dnf(And(Or(1, 2), And(3, 4))) == Or(And(1, 3, 4), And(2, 3, 4))
-    assert dnf(And(Or(1, 2), Or(3, 4))) == Or(And(1, 3), And(1, 4), And(2, 3), And(2, 4))
-    
-
-def by_item(ops):
-    g = groupby(lambda x: (x.item.pure()[0], type(x)), ops)
-    return [v[0].sum(v) for v in g.values()]
-
-
-def cost(reqs):
-    return sum(x.gold if hasattr(x, "gold") else 0 for x in reqs)
-
-
-def topk_procurements(pp, items, k=4):
-    dnf_ = dnf(pp.obtain(items))
-    methods = [
-        by_item(ops)
-        for ops in topk(k, dnf_, key=lambda x: -cost(x))
-    ]
-    return [(cost(m), m) for m in methods]
-
-
-def best_procurement(pp, items):
-    dnf_ = dnf(pp.obtain(items))
-    return min(dnf_, key=lambda x: cost(x))
+def purchase_modes(item):
+    (name, count, item_id) = item.pure()
+    p = partial(iii.get_property, item=item, default=None)
+    return {
+        "buy now": p("min") or None,
+        "buy market": p("marketValue"),
+        "buy vendor": p("purchase_price") if name in vendor else None,
+        "long avg": nullable_avg(p(["historical"]), p(["region_historical"])),
+        "roxi ramrocket": roxi.get(name),
+    }
