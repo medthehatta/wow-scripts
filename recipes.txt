@@ -333,3 +333,9 @@ skyfire diamond
 
 spellslinger's slippers
 4 spellweave + 4 ebonweave + 6 runed orb
+
+sash of ancient power
+4 spellweave + 4 ebonweave + 6 runed orb
+
+belt of arctic life
+4 heavy borean leather + 3 arctic fur + 6 runed orb
